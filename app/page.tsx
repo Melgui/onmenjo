@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Restaurant, Card } from '@/lib/data';
+import { useDebouncedEffect } from '@/lib/useDebouncedEffect';
 import SearchBar from '@/components/SearchBar';
 import FilterChips from '@/components/FilterChips';
 import RestaurantCard from '@/components/RestaurantCard';
@@ -27,10 +28,7 @@ export default function Home() {
       });
   }, [query, activeCard]);
 
-  useEffect(() => {
-    const timer = setTimeout(fetchRestaurants, 300);
-    return () => clearTimeout(timer);
-  }, [fetchRestaurants]);
+  useDebouncedEffect(fetchRestaurants, [fetchRestaurants], 300);
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8">
