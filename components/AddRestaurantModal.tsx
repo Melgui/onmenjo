@@ -1,13 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { Card, CARD_LABELS, Restaurant } from '@/lib/data';
+import { Card, CARD_LABELS } from '@/lib/data';
 
 interface Props {
   onClose: () => void;
-  onAdd: (restaurant: Restaurant) => void;
+  onAdded: () => void;
 }
 
-export default function AddRestaurantModal({ onClose, onAdd }: Props) {
+export default function AddRestaurantModal({ onClose, onAdded }: Props) {
   const [name, setName] = useState('');
   const [barri, setBarri] = useState('');
   const [tipo, setTipo] = useState('');
@@ -15,15 +15,25 @@ export default function AddRestaurantModal({ onClose, onAdd }: Props) {
   const [cards, setCards] = useState<Record<Card, boolean>>({
     ticket: false, sodexo: false, coverflex: false, pluxee: false,
   });
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const restaurant: Restaurant = {
-      id: Date.now(),
-      name, barri, tipo, address, cards,
-    };
-    onAdd(restaurant);
-    onClose();
+    setSaving(true);
+
+    const res = await fetch('/api/restaurants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, barri, tipo, address, cards }),
+    });
+
+    if (res.ok) {
+      onAdded();
+      onClose();
+    } else {
+      setSaving(false);
+      alert('No s\'ha pogut crear');
+    }
   }
 
   return (
@@ -88,9 +98,10 @@ export default function AddRestaurantModal({ onClose, onAdd }: Props) {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-700"
+              disabled={saving}
+              className="flex-1 px-4 py-2 text-sm bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
             >
-              Afegir
+              {saving ? 'Guardant...' : 'Afegir'}
             </button>
           </div>
         </form>

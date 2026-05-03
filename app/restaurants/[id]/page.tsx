@@ -1,35 +1,38 @@
-'use client';
-import { use } from 'react';
-import { restaurants, Restaurant } from '@/lib/data';
+import { prisma } from '@/lib/prisma';
 import RestaurantCard from '@/components/RestaurantCard';
-
-const STORAGE_KEY = 'onmenjo_custom';
+import DeleteButton from '@/components/DeleteButton';
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
-export default function RestaurantPage({ params }: Props) {
-  const { id } = use(params);
+export default async function RestaurantPage({ params }: Props) {
+  const { id } = await params;
+  const numericId = Number(id);
 
-  const seed = restaurants.find(r => r.id === Number(id));
-
-  let custom: Restaurant[] = [];
-  try {
-    custom = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
-  } catch {
-    custom = [];
+  if (Number.isNaN(numericId)) {
+    return <p className="p-8 text-gray-400">Id invàlid</p>;
   }
 
-  const restaurant = seed ?? custom.find(r => r.id === Number(id));
+  const row = await prisma.restaurant.findUnique({ where: { id: numericId } });
 
-  if (!restaurant) {
+  if (!row) {
     return <p className="p-8 text-gray-400">Restaurant no trobat</p>;
   }
+
+  const restaurant = {
+    id: row.id,
+    name: row.name,
+    barri: row.barri,
+    tipo: row.tipo,
+    address: row.address,
+    cards: { ticket: row.ticket, sodexo: row.sodexo, coverflex: row.coverflex, pluxee: row.pluxee },
+  };
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8">
       <RestaurantCard restaurant={restaurant} />
+      <DeleteButton id={restaurant.id} name={restaurant.name} />
     </main>
   );
 }
