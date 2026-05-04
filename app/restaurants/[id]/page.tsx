@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma';
+import { toRestaurant } from '@/lib/restaurant';
 import RestaurantCard from '@/components/RestaurantCard';
 import DeleteButton from '@/components/DeleteButton';
+
+// Cachea cada detalle 5 minutos. revalidatePath('/restaurants/[id]') desde DELETE
+// invalida cuando se borra un restaurante.
+export const revalidate = 300;
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -20,14 +25,7 @@ export default async function RestaurantPage({ params }: Props) {
     return <p className="p-8 text-gray-400">Restaurant no trobat</p>;
   }
 
-  const restaurant = {
-    id: row.id,
-    name: row.name,
-    barri: row.barri,
-    tipo: row.tipo,
-    address: row.address,
-    cards: { ticket: row.ticket, sodexo: row.sodexo, coverflex: row.coverflex, pluxee: row.pluxee },
-  };
+  const restaurant = toRestaurant(row);
 
   return (
     <main className="max-w-xl mx-auto px-4 py-8">

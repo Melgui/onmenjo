@@ -21,4 +21,7 @@ model Restaurant {
   sodexo  Boolean @default(false)
   coverflex Boolean @default(false)
   pluxee  Boolean @default(false)
+
+  @@index([name])
+  @@index([barri])
 }

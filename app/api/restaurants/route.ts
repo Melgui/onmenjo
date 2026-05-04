@@ -1,19 +1,9 @@
 import { prisma } from '@/lib/prisma';
+import { toRestaurant } from '@/lib/restaurant';
 import { Card } from '@/lib/data';
 import { NextRequest } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import type { Prisma } from '@prisma/client';
-
-// Convierte fila plana de la BD al formato anidado que espera el frontend
-function toApi(r: { id: number; name: string; barri: string; tipo: string; address: string; ticket: boolean; sodexo: boolean; coverflex: boolean; pluxee: boolean }) {
-  return {
-    id: r.id,
-    name: r.name,
-    barri: r.barri,
-    tipo: r.tipo,
-    address: r.address,
-    cards: { ticket: r.ticket, sodexo: r.sodexo, coverflex: r.coverflex, pluxee: r.pluxee },
-  };
-}
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q') ?? '';
@@ -33,7 +23,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = await prisma.restaurant.findMany({ where, orderBy: { id: 'asc' } });
-  return Response.json(rows.map(toApi));
+  return Response.json(rows.map(toRestaurant));
 }
 
 export async function POST(req: NextRequest) {
@@ -54,5 +44,8 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return Response.json(toApi(created), { status: 201 });
+  // Invalida el caché de la home para que el siguiente render muestre el nuevo restaurante
+  revalidatePath('/');
+
+  return Response.json(toRestaurant(created), { status: 201 });
 }

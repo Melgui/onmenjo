@@ -386,7 +386,125 @@ Cada `git push` a `main` redeploya automáticamente.
 
 ---
 
-## 10. Patrones generales aprendidos
+## 10. Caché y rendimiento en Next.js
+
+### `revalidate` en Server Components
+
+```tsx
+// app/page.tsx
+export const revalidate = 60;  // segundos
+
+export default async function Home() {
+  const rows = await prisma.restaurant.findMany();
+  return <RestaurantsExplorer initialRestaurants={rows.map(toRestaurant)} />;
+}
+```
+
+**Cómo funciona**: Next.js cachea el HTML resultante. Las primeras visitas tras los 60s reciben HTML cacheado al instante; en background se regenera para la siguiente petición. Esto se llama **stale-while-revalidate**.
+
+### Invalidación bajo demanda con `revalidatePath`
+
+```tsx
+// app/api/restaurants/route.ts
+import { revalidatePath } from 'next/cache';
+
+export async function POST(req) {
+  await prisma.restaurant.create({ data: ... });
+  revalidatePath('/');   // marca la home como stale, próximo render hace fetch fresco
+  return Response.json(...);
+}
+```
+
+Útil cuando una mutación deja el caché desactualizado.
+
+### Patrón "Server shell + Client island"
+
+Cuando una página necesita datos del servidor + interactividad:
+
+- **Server Component (page.tsx)** — lee de BD/API, hace SEO-friendly y rápido
+- **Client Component (Explorer)** — recibe los datos como props, gestiona la UI interactiva
+
+```tsx
+// app/page.tsx (Server)
+export default async function Home() {
+  const data = await prisma.restaurant.findMany();
+  return <RestaurantsExplorer initialRestaurants={data} />;
+}
+
+// components/RestaurantsExplorer.tsx (Client)
+'use client';
+export default function RestaurantsExplorer({ initialRestaurants }) {
+  const [query, setQuery] = useState('');
+  // ...filtrado en memoria, modal, etc.
+}
+```
+
+El HTML inicial llega ya pintado (sin "loading"); React hidrata después para activar la interactividad.
+
+### Filtrado en cliente vs en servidor
+
+Cuando el catálogo es pequeño (< 1000 registros), filtrar en cliente es **más rápido** que ir a la API:
+
+- Sin latencia de red
+- Sin coste de cómputo en el servidor
+- Sin desgaste de conexiones a BD
+- Búsqueda instantánea
+
+Cuando el catálogo crece, se vuelve a paginar y filtrar en el servidor.
+
+### `useMemo`
+
+Recalcula un valor solo cuando cambian sus dependencias. Útil para filtros costosos:
+
+```tsx
+const results = useMemo(() => {
+  return all.filter(r => r.name.includes(query));
+}, [all, query]);
+```
+
+Sin `useMemo`, el filtro se ejecutaría en cada render aunque no haya cambiado nada.
+
+### Custom hooks
+
+Funciones que empiezan por `use` y combinan otros hooks. Permiten reutilizar lógica entre componentes:
+
+```ts
+// lib/useDebouncedEffect.ts
+export function useDebouncedEffect(fn, deps, delay) {
+  const isFirst = useRef(true);
+  useEffect(() => {
+    if (isFirst.current) { isFirst.current = false; fn(); return; }
+    const t = setTimeout(fn, delay);
+    return () => clearTimeout(t);
+  }, deps);
+}
+```
+
+### Índices en PostgreSQL desde Prisma
+
+```prisma
+model Restaurant {
+  name  String
+  barri String
+  @@index([name])
+  @@index([barri])
+}
+```
+
+Acelera búsquedas en columnas que se filtran a menudo. Para `LIKE 'prefijo%'` los índices B-tree estándar funcionan; para `ILIKE '%texto%'` (búsqueda en mitad del string) se necesitan índices GIN con extensión `pg_trgm`.
+
+### Region pinning en Vercel
+
+```json
+// vercel.json
+{ "regions": ["dub1"] }
+```
+
+Despliega las funciones serverless cerca de la BD. Si Supabase está en `eu-west-1` (Ireland), Dublín minimiza la latencia.
+
+---
+
+## 11. Patrones generales aprendidos
 
 - **Estado arriba, props abajo** — el estado vive donde se necesita lo más arriba posible
 - **Componentes pequeños y reutilizables** — un componente = una responsabilidad
@@ -394,3 +512,5 @@ Cada `git push` a `main` redeploya automáticamente.
 - **Server-first** — usa Server Components por defecto, Client solo cuando hace falta
 - **Tipos estrictos** — TypeScript te avisa de errores antes de ejecutar
 - **No subas nada generado a git** — solo el código fuente, lo demás se reconstruye
+- **Caché con invalidación selectiva** — más rápido que regenerar todo en cada request
+- **Filtra donde tenga sentido** — pequeñas listas en cliente, grandes en servidor con paginación
